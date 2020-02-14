@@ -36,22 +36,31 @@ namespace SnmpSharpNet
     public class UdpTarget : UdpTransport, IDisposable
     {
         /// <summary>
+        /// Handle to the logger.
+        /// </summary>
+        private static readonly log4net.ILog log = SnmpSharpNetLogger.GetLogger(System.Reflection.MethodBase.GetCurrentMethod().DeclaringType);
+
+        /// <summary>
         /// SNMP request target host IP address
         /// </summary>
         protected IPAddress _address;
+
         /// <summary>
         /// Maximum number of retries. Value of 0 (zero) will result in a single request without
         /// retries.
         /// </summary>
         protected int _retry;
+
         /// <summary>
         /// SNMP target UDP port number
         /// </summary>
         protected int _port;
+
         /// <summary>
         /// SNMP request timeout value in milliseconds
         /// </summary>
         protected int _timeout;
+
         /// <summary>
         /// Get/Set Udp agent IP address
         /// </summary>
@@ -71,6 +80,7 @@ namespace SnmpSharpNet
                 }
             }
         }
+
         /// <summary>
         /// Get/Set Udp agent port number
         /// </summary>
@@ -79,6 +89,7 @@ namespace SnmpSharpNet
             get { return _port; }
             set { _port = value; }
         }
+
         /// <summary>
         /// Get/Set Udp agent timeout value in milliseconds
         /// </summary>
@@ -87,6 +98,7 @@ namespace SnmpSharpNet
             get { return _timeout; }
             set { _timeout = value; }
         }
+
         /// <summary>
         /// Get/Set Udp agent maximum retry value. Value of 0 (zero) will result in a single request
         /// being sent without further retry attempts.
@@ -96,6 +108,7 @@ namespace SnmpSharpNet
             get { return _retry; }
             set { _retry = value; }
         }
+
         /// <summary>
         /// Constructor.
         /// </summary>
@@ -111,6 +124,7 @@ namespace SnmpSharpNet
             _timeout = timeout;
             _retry = retry;
         }
+        
         /// <summary>
         /// Constructor
         /// </summary>
@@ -199,6 +213,8 @@ namespace SnmpSharpNet
                 packet.Community.Set(param.Community);
                 outPacket = packet.Encode();
                 _noSourceCheck = param.DisableReplySourceCheck;
+
+                log.Debug($"Sending V1 packet with ID {packet.Pdu.RequestId} to {this.Address}");
             }
             else if (agentParameters.Version == SnmpVersion.Ver2)
             {
@@ -213,6 +229,8 @@ namespace SnmpSharpNet
                 packet.Community.Set(param.Community);
                 _noSourceCheck = param.DisableReplySourceCheck;
                 outPacket = packet.Encode();
+
+                log.Debug($"Sending V2 packet with ID {packet.Pdu.RequestId} to {this.Address}");
             }
             else
             {
@@ -225,22 +243,30 @@ namespace SnmpSharpNet
             {
                 throw new SnmpException(SnmpException.NoDataReceived, "No data received on request.");
             }
+
             // verify packet
             if (agentParameters.Version == SnmpVersion.Ver1)
             {
                 SnmpV1Packet packet = new SnmpV1Packet();
                 AgentParameters param = (AgentParameters)agentParameters;
                 packet.Decode(inBuffer, inBuffer.Length);
+
+                log.Debug($"Received V1 packet with ID {packet.Pdu.RequestId} from {this.Address}");
+
                 if (packet.Community != param.Community)
                 {
                     // invalid community name received. Ignore the rest of the packet
                     throw new SnmpAuthenticationException("Invalid community name in reply.");
                 }
+
                 if (packet.Pdu.RequestId != pdu.RequestId)
                 {
+                    log.Error($"Invalid request id {packet.Pdu.RequestId} in V1 reply of {this.Address}. Expecting {pdu.RequestId}");
+
                     // invalid request id. unmatched response ignored
-                    throw new SnmpException(SnmpException.InvalidRequestId, "Invalid request id in reply.");
+                    throw new SnmpException(SnmpException.InvalidRequestId, $"Invalid request id ({packet.Pdu.RequestId}) in V1 reply. Expecting {pdu.RequestId}");
                 }
+
                 return packet;
             }
             else if (agentParameters.Version == SnmpVersion.Ver2)
@@ -248,16 +274,23 @@ namespace SnmpSharpNet
                 SnmpV2Packet packet = new SnmpV2Packet();
                 AgentParameters param = (AgentParameters)agentParameters;
                 packet.Decode(inBuffer, inBuffer.Length);
+
+                log.Debug($"Received V2 packet with ID {packet.Pdu.RequestId} from {this.Address}");
+
                 if (packet.Community != param.Community)
                 {
                     // invalid community name received. Ignore the rest of the packet
                     throw new SnmpAuthenticationException("Invalid community name in reply.");
                 }
+
                 if (packet.Pdu.RequestId != pdu.RequestId)
                 {
+                    log.Error($"Invalid request id {packet.Pdu.RequestId} in V2 reply of {this.Address}. Expecting {pdu.RequestId}");
+
                     // invalid request id. unmatched response ignored
-                    throw new SnmpException(SnmpException.InvalidRequestId, "Invalid request id in reply.");
+                    throw new SnmpException(SnmpException.InvalidRequestId, $"Invalid request id ({packet.Pdu.RequestId}) in V2 reply. Expecting {pdu.RequestId}");
                 }
+
                 return packet;
             }
             else if (agentParameters.Version == SnmpVersion.Ver3)
@@ -292,6 +325,7 @@ namespace SnmpSharpNet
                     }
                 }
             }
+
             return null;
         }
 
